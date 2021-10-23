@@ -73,9 +73,15 @@ namespace UndertaleModCli
 
         public FileInfo? Dest { get; set; }
 
-        // Accept interface Save (Data, destfile)
-
-        public static UndertaleData ReadDataFile(FileInfo datafile, WarningHandlerDelegate? OnWarning, MessageHandlerDelegate? OnMessage)
+        /// <summary>
+        /// Read supplied filename and return the data file
+        /// </summary>
+        /// <param name="datafile"></param>
+        /// <param name="OnWarning"></param>
+        /// <param name="OnMessage"></param>
+        /// <returns></returns>
+        /// <exception cref="DataFileNotFoundException">If the data file cannot be found</exception>
+        public static UndertaleData ReadDataFile(FileInfo datafile, WarningHandlerDelegate? OnWarning = null, MessageHandlerDelegate? OnMessage = null)
         {
             try
             {
@@ -113,7 +119,7 @@ namespace UndertaleModCli
             }
             else
             {
-                this.Data = ReadDataFile(datafile, null, null);
+                this.Data = ReadDataFile(datafile);
             }
 
             FinishedMessageEnabled = true;
