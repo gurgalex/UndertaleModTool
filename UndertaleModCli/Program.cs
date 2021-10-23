@@ -185,11 +185,13 @@ namespace UndertaleModCli
             };
             infoCommand.Handler = CommandHandler.Create<InfoOptions>(Program.Info);
 
-
+            var scriptRunnerOption = new Option<FileInfo[]>("--scripts", "Scripts to apply to the <datafile>. ex. a.csx b.csx");
+            scriptRunnerOption.AddAlias("-s");
+            scriptRunnerOption.AddAlias("--applyscripts");
             var loadCommand = new Command("load", "Load data file and perform actions on it") {
                 dataFileOption,
+                scriptRunnerOption,
                 verboseOption,
-                new Option<FileInfo[]>("--scripts", "Scripts to apply to the <datafile>. ex. a.csx b.csx"),
                 new Option<FileInfo>("--dest", "Where to save the modified data file"),
                 new Option<string>("--line", "run c# string. Runs AFTER everything else"),
                 new Option<bool>("--interactive", "Interactive menu launch"),
@@ -284,7 +286,8 @@ namespace UndertaleModCli
                 return EXIT_SUCCESS;
             }
 
-            if (options.Scripts != null) {
+            if (options.Scripts != null)
+            {
                 foreach (var script in options.Scripts)
                 {
                     program.RunCodeFile(script.FullName);
