@@ -116,10 +116,7 @@ namespace UndertaleModCli
                 this.Data = ReadDataFile(datafile, null, null);
             }
 
-            if (verbose)
-            {
-                FinishedMessageEnabled = true;
-            }
+            FinishedMessageEnabled = true;
             this.CliScriptOptions = ScriptOptions.Default
                             .AddImports("UndertaleModLib", "UndertaleModLib.Models", "UndertaleModLib.Decompiler",
                                         "UndertaleModLib.Scripting", "UndertaleModLib.Compiler",
@@ -272,7 +269,6 @@ namespace UndertaleModCli
 
         public void RunCodeLine(string line)
         {
-            string msg = "Script execution complete.";
 
             try
             {
@@ -285,12 +281,20 @@ namespace UndertaleModCli
                 ScriptExecutionSuccess = false;
                 ScriptErrorMessage = exc.ToString();
                 ScriptErrorType = "Exception";
-                msg = ScriptErrorMessage;
             }
 
-            if (FinishedMessageEnabled || !ScriptExecutionSuccess)
+            if (FinishedMessageEnabled)
             {
-                Console.WriteLine(msg);
+                if (ScriptExecutionSuccess)
+                {
+                    string msg = $"Finished executing {ScriptPath ?? "c# line"}";
+                    if (Verbose)
+                        Console.WriteLine(msg);
+                }
+                else
+                {
+                    Console.Error.WriteLine(ScriptErrorMessage);
+                }
             }
         }
 
@@ -303,8 +307,8 @@ namespace UndertaleModCli
             }
             catch (IOException exc)
             {
-                Console.WriteLine("Script file not found or cannot be read.");
-                Console.WriteLine(exc);
+                Console.Error.WriteLine("Script file not found or cannot be read.");
+                Console.Error.WriteLine(exc);
                 return;
             }
 
@@ -322,7 +326,10 @@ namespace UndertaleModCli
 
         public void CliSave(string to)
         {
-            Console.WriteLine($"Saving new data file to {this.Dest.FullName}");
+            if (Verbose)
+            {
+                Console.WriteLine($"Saving new data file to {this.Dest.FullName}");
+            }
 
             using (var fs = new FileInfo(to).OpenWrite())
             {
