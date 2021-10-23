@@ -214,8 +214,6 @@ namespace UndertaleModCli
                 };
 
             rootCommand.Description = "cli tool for modding, decompiling and unpacking Undertale (and other Game Maker: Studio games!";
-/*            rootCommand.Handler = CommandHandler.Create<RootOptions>(Program.Enter);
-*/
             var commandLine = new CommandLineBuilder(rootCommand)
                                     .UseDefaults() // automatically configures dotnet-suggest
                                     .Build();
