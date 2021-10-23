@@ -69,6 +69,7 @@ namespace UndertaleModCli
         // taken fron the Linux programmer manual:
         const int EXIT_SUCCESS = 0;
         const int EXIT_FAILURE = 1;
+        public bool Interactive = false;
 
         public FileInfo? Dest { get; set; }
 
@@ -91,9 +92,10 @@ namespace UndertaleModCli
         }
         public bool Verbose { get; set; }
 
-        public Program(FileInfo datafile, FileInfo[]? scripts, FileInfo? dest, bool verbose = false)
+        public Program(FileInfo datafile, FileInfo[]? scripts, FileInfo? dest, bool verbose = false, bool interactive = false)
         {
             Verbose = verbose;
+            Interactive = interactive;
             Console.InputEncoding = System.Text.Encoding.UTF8;
             Console.OutputEncoding = Console.InputEncoding;
 
@@ -192,7 +194,7 @@ namespace UndertaleModCli
             Program program;
             try
             {
-                program = new Program(options.Datafile, options.Scripts, options.Dest, options.Verbose);
+                program = new Program(options.Datafile, options.Scripts, options.Dest, options.Verbose, options.Interactive);
             }
             catch (DataFileNotFoundException e)
             {
@@ -357,10 +359,7 @@ namespace UndertaleModCli
             Console.WriteLine("Is YYC - {0}", Data.IsYYC());
             Console.WriteLine("Bytecode version - {0}", Data.GeneralInfo.BytecodeVersion);
             Console.WriteLine("Configuration name - {0}", Data.GeneralInfo.Config);
-/*            // TODO: add more things?
-            Console.WriteLine("Quick Information end.");
-            Pause();
-*/        }
+        }
 
         public bool OnMenu()
         {
@@ -412,6 +411,7 @@ namespace UndertaleModCli
                 case ConsoleKey.D5:
                     {
                         CliQuickInfo();
+                        Pause();
                         break;
                     }
 
@@ -477,7 +477,7 @@ namespace UndertaleModCli
         public void ScriptMessage(string message)
         {
             Console.WriteLine(message);
-            Pause();
+            if (Interactive) { Pause(); }
         }
 
         public void SetUMTConsoleText(string message)
@@ -506,7 +506,7 @@ namespace UndertaleModCli
             Console.WriteLine("--------------------------------------------------");
             Console.WriteLine("---------------------ERROR!-----------------------");
             Console.WriteLine("--------------------------------------------------");
-            Pause();
+            if (Interactive) { Pause(); }
         }
 
         public void ScriptOpenURL(string url)
