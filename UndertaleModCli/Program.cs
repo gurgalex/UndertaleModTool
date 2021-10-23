@@ -31,11 +31,6 @@ public class DataFileNotFoundException : ArgumentException
 namespace UndertaleModCli
 {
 
-    public interface ICommand
-    {
-        void Execute();
-    }
-
     public class LoadOptions
     {
 
@@ -79,14 +74,6 @@ namespace UndertaleModCli
         public bool Stdout { get; set; }
 
     }
-
-
-    interface ISave
-    {
-        public UndertaleData Data { get; set; }
-        public FileInfo? Dest { get; set; }
-    }
-
 
     public class Program : IScriptInterface
     {
