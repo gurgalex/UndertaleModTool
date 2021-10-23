@@ -11,8 +11,10 @@ using UndertaleModLib.Scripting;
 using UndertaleModLib.Util;
 using static UndertaleModLib.UndertaleReader;
 
-using CommandLine;
-
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.CommandLine.Builder;
+using System.CommandLine.Parsing;
 
 public class DataFileNotFoundException : ArgumentException
 {
@@ -31,35 +33,25 @@ namespace UndertaleModCli
         void Execute();
     }
 
-    [Verb("load", HelpText = "Load data file and perform actions on it")]
     public class LoadOptions
     {
 
-        [Value(0, Default = "data.win", HelpText = "path to the data.win/.ios/.droid/.unx file", Required = true)]
         public FileInfo Datafile { get; set; }
-        [Option('s', "scripts", HelpText = "Scripts to apply to the<datafile>.ex.a.csx b.csx", Required = false)]
-        public FileInfo[] Scripts { get; set; } = Array.Empty<FileInfo>();
-        [Option("line", HelpText = "Run c# string. Runs AFTER everything else")]
-        public string? Line { get; set; } = null;
+        public FileInfo[] Scripts { get; set; }
+        public string? Line { get; set; }
 
 
-        [Option("dest", HelpText = "Where to save the modified data file")]
         public FileInfo? Dest { get; set; }
-        [Option("interactive", HelpText = "Interactive menu launch")]
         public bool Interactive { get; set; } = false;
-        [Option('v', "verbose", HelpText = "diagnostic loading info")]
         public bool Verbose { get; set; } = false;
 
 
 
     }
 
-    [Verb("info", HelpText = "Show basic info about data.* file")]
     public class InfoOptions
     {
-        [Value(0, MetaName="datafile", HelpText = "path to the data.win/.ios/.droid/.unx file", Default = "data.win", Required = true)]
         public FileInfo Datafile { get; set; }
-        [Option('v', "verbose", HelpText = "Show diagnostic messages")]
         public bool Verbose { get; set; } = false;
 
     }
@@ -152,23 +144,55 @@ namespace UndertaleModCli
 
         public static int Main(string[] args)
         {
-            Parser.Default.ParseArguments<LoadOptions, InfoOptions>(args)
-                .WithParsed(
-                    (LoadOptions opts) => Load(opts))
-                .WithParsed(
-                    (InfoOptions opts) => Info(opts));
-            return EXIT_SUCCESS;
+            var verboseOption = new Option<bool>("--verbose", "Detailed logs");
+            verboseOption.AddAlias("-v");
+
+            var dataFileOption = new Argument<FileInfo>("datafile")
+            {
+                Description = "path to the data.win/.ios/.droid/.unx file"
+            };
+
+            var infoCommand = new Command("info", "Show info about game data file")
+            {
+                dataFileOption,
+                verboseOption,
+            };
+            infoCommand.Handler = CommandHandler.Create<InfoOptions>(Program.Info);
+
+
+            var loadCommand = new Command("load", "Load data file and perform actions on it") {
+                dataFileOption,
+                verboseOption,
+                new Option<FileInfo[]>("--scripts", "Scripts to apply to the <datafile>. ex. a.csx b.csx"),
+                new Option<FileInfo>("--dest", "Where to save the modified data file"),
+                new Option<string>("--line", "run c# string. Runs AFTER everything else"),
+                new Option<bool>("--interactive", "Interactive menu launch"),
+
+            };
+            loadCommand.Handler = CommandHandler.Create<LoadOptions>(Program.Load);
+
+            var rootCommand = new RootCommand {
+                infoCommand,
+                loadCommand,
+                };
+            rootCommand.Description = "cli tool for modding, decompiling and unpacking Undertale (and other Game Maker: Studio games!";
+/*            rootCommand.Handler = CommandHandler.Create<RootOptions>(Program.Enter);
+*/
+            var commandLine = new CommandLineBuilder(rootCommand)
+                                    .UseDefaults() // automatically configures dotnet-suggest
+                                    .Build();
+
+            return commandLine.Invoke(args);
 
         }
 
         static public int Load(LoadOptions options)
         {
-            return EXIT_SUCCESS;
 
             Program program;
             try
             {
-                program = new Program(options.Datafile, null, options.Dest, options.Verbose);
+                program = new Program(options.Datafile, options.Scripts, options.Dest, options.Verbose);
             }
             catch (DataFileNotFoundException e)
             {
@@ -190,6 +214,7 @@ namespace UndertaleModCli
 
             if (options.Line != null)
             {
+                program.ScriptPath = null;
                 program.RunCodeLine(options.Line);
             }
 
@@ -261,7 +286,7 @@ namespace UndertaleModCli
                 msg = ScriptErrorMessage;
             }
 
-            if (FinishedMessageEnabled)
+            if (FinishedMessageEnabled || !ScriptExecutionSuccess)
             {
                 Console.WriteLine(msg);
             }
