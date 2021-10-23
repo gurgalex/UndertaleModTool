@@ -16,6 +16,9 @@ using System.CommandLine.Invocation;
 using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
 
+/// <summary>
+/// The supplied location of the data file did not exist
+/// </summary>
 public class DataFileNotFoundException : ArgumentException
 {
     public DataFileNotFoundException() { }
