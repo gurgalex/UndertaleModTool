@@ -307,11 +307,11 @@ namespace UndertaleModCli
 
         public string FilePath { get; set; }
 
-        public string? ScriptPath { get; set; }
+        public string ScriptPath { get; set; }
 
-        public object? Highlighted { get; set; }
+        public object Highlighted { get; set; }
 
-        public object? Selected { get; set; }
+        public object Selected { get; set; }
 
         public bool CanSave { get; set; }
 
@@ -325,7 +325,7 @@ namespace UndertaleModCli
 
         public ScriptOptions CliScriptOptions { get; set; }
 
-        public bool FinishedMessageEnabled { get; set; } = false;
+        public bool FinishedMessageEnabled { get; set; }
 
         // need this on Windows when drag and dropping files.
         public static string Dequote(string a) => a.TrimStart('"').TrimEnd('"');
