@@ -9,29 +9,214 @@ using System.Runtime.InteropServices;
 using UndertaleModLib;
 using UndertaleModLib.Scripting;
 using UndertaleModLib.Util;
+using static UndertaleModLib.UndertaleReader;
+
+using CommandLine;
+
+
+public class DataFileNotFoundException : ArgumentException
+{
+    public DataFileNotFoundException() { }
+    public DataFileNotFoundException(string message) : base(message) { }
+    public DataFileNotFoundException(string message, Exception inner) : base(message, inner) { }
+}
+
+
 
 namespace UndertaleModCli
 {
+
+    public interface ICommand
+    {
+        void Execute();
+    }
+
+    [Verb("load", HelpText = "Load data file and perform actions on it")]
+    public class LoadOptions
+    {
+
+        [Value(0, Default = "data.win", HelpText = "path to the data.win/.ios/.droid/.unx file", Required = true)]
+        public FileInfo Datafile { get; set; }
+        [Option('s', "scripts", HelpText = "Scripts to apply to the<datafile>.ex.a.csx b.csx", Required = false)]
+        public FileInfo[] Scripts { get; set; } = Array.Empty<FileInfo>();
+        [Option("line", HelpText = "Run c# string. Runs AFTER everything else")]
+        public string? Line { get; set; } = null;
+
+
+        [Option("dest", HelpText = "Where to save the modified data file")]
+        public FileInfo? Dest { get; set; }
+        [Option("interactive", HelpText = "Interactive menu launch")]
+        public bool Interactive { get; set; } = false;
+        [Option('v', "verbose", HelpText = "diagnostic loading info")]
+        public bool Verbose { get; set; } = false;
+
+
+
+    }
+
+    [Verb("info", HelpText = "Show basic info about data.* file")]
+    public class InfoOptions
+    {
+        [Value(0, MetaName="datafile", HelpText = "path to the data.win/.ios/.droid/.unx file", Default = "data.win", Required = true)]
+        public FileInfo Datafile { get; set; }
+        [Option('v', "verbose", HelpText = "Show diagnostic messages")]
+        public bool Verbose { get; set; } = false;
+
+    }
+
+
+    interface ISave
+    {
+        public UndertaleData Data { get; set; }
+        public FileInfo? Dest { get; set; }
+    }
+
+
     public class Program : IScriptInterface
     {
         // taken fron the Linux programmer manual:
         const int EXIT_SUCCESS = 0;
         const int EXIT_FAILURE = 1;
 
+        public FileInfo? Dest { get; set; }
+
+        // Accept interface Save (Data, destfile)
+
+        public static UndertaleData ReadDataFile(FileInfo datafile, WarningHandlerDelegate? OnWarning, MessageHandlerDelegate? OnMessage)
+        {
+            try
+            {
+                using (var fs = datafile.OpenRead())
+                {
+                    return UndertaleIO.Read(fs, OnWarning, OnMessage);
+                }
+            }
+            catch (FileNotFoundException e)
+            {
+                throw new DataFileNotFoundException($"data file {e.FileName} does not exist");
+            }
+
+        }
+        public bool Verbose { get; set; }
+
+        public Program(FileInfo datafile, FileInfo[]? scripts, FileInfo? dest, bool verbose = false)
+        {
+            Verbose = verbose;
+            Console.InputEncoding = System.Text.Encoding.UTF8;
+            Console.OutputEncoding = Console.InputEncoding;
+
+
+            Console.WriteLine($"Trying to load file: {datafile.FullName}");
+
+
+
+            this.FilePath = datafile.FullName;
+            this.ExePath = Environment.CurrentDirectory;
+            this.Dest = dest;
+            if (Verbose)
+            {
+                this.Data = ReadDataFile(datafile, OnWarning, OnMessage);
+            }
+            else
+            {
+                this.Data = ReadDataFile(datafile, null, null);
+            }
+
+            if (verbose)
+            {
+                FinishedMessageEnabled = true;
+            }
+            this.CliScriptOptions = ScriptOptions.Default
+                            .AddImports("UndertaleModLib", "UndertaleModLib.Models", "UndertaleModLib.Decompiler",
+                                        "UndertaleModLib.Scripting", "UndertaleModLib.Compiler",
+                                        "UndertaleModLib.Util", "System", "System.IO", "System.Collections.Generic",
+                                        "System.Text.RegularExpressions")
+                            .AddReferences(typeof(UndertaleObject).GetTypeInfo().Assembly,
+                                            GetType().GetTypeInfo().Assembly,
+                                            typeof(JsonConvert).GetTypeInfo().Assembly,
+                                            typeof(System.Text.RegularExpressions.Regex).GetTypeInfo().Assembly,
+                                            typeof(TextureWorker).GetTypeInfo().Assembly);
+        }
+
+        public Program(FileInfo datafile, bool verbose)
+        {
+            if (verbose)
+            {
+                this.Data = ReadDataFile(datafile, OnWarning, OnMessage);
+            }
+            else
+            {
+                this.Data = ReadDataFile(datafile, null, null);
+            }
+        }
+
         public static int Main(string[] args)
         {
-            return (new Program()).CliMain(args);
+            Parser.Default.ParseArguments<LoadOptions, InfoOptions>(args)
+                .WithParsed(
+                    (LoadOptions opts) => Load(opts))
+                .WithParsed(
+                    (InfoOptions opts) => Info(opts));
+            return EXIT_SUCCESS;
+
+        }
+
+        static public int Load(LoadOptions options)
+        {
+            return EXIT_SUCCESS;
+
+            Program program;
+            try
+            {
+                program = new Program(options.Datafile, null, options.Dest, options.Verbose);
+            }
+            catch (DataFileNotFoundException e)
+            {
+                Console.Error.WriteLine(e.Message);
+                return EXIT_FAILURE;
+            }
+            if (options.Interactive)
+            {
+                program.interactiveMenu();
+                return EXIT_SUCCESS;
+            }
+
+            if (options.Scripts != null) {
+                foreach (var script in options.Scripts)
+                {
+                    program.RunCodeFile(script.FullName);
+                }
+            }
+
+            if (options.Line != null)
+            {
+                program.RunCodeLine(options.Line);
+            }
+
+            if (options.Dest != null)
+            {
+                program.CliSave(options.Dest.FullName);
+            }
+
+            return EXIT_SUCCESS;
+
+        }
+
+
+        public void interactiveMenu()
+        {
+            while (OnMenu()) { }
         }
 
         public UndertaleData Data { get; set; }
 
         public string FilePath { get; set; }
 
-        public string ScriptPath { get; set; }
+        public string? ScriptPath { get; set; }
 
-        public object Highlighted { get; set; }
+        public object? Highlighted { get; set; }
 
-        public object Selected { get; set; }
+        public object? Selected { get; set; }
 
         public bool CanSave { get; set; }
 
@@ -45,10 +230,10 @@ namespace UndertaleModCli
 
         public ScriptOptions CliScriptOptions { get; set; }
 
-        public bool FinishedMessageEnabled { get; set; }
+        public bool FinishedMessageEnabled { get; set; } = false;
 
         // need this on Windows when drag and dropping files.
-        public string Dequote(string a) => a.TrimStart('"').TrimEnd('"');
+        public static string Dequote(string a) => a.TrimStart('"').TrimEnd('"');
 
         public void Pause()
         {
@@ -56,13 +241,6 @@ namespace UndertaleModCli
             Console.Write("Press any key to continue . . . ");
             Console.ReadKey(true);
             Console.WriteLine();
-        }
-
-        public void PrintUsage()
-        {
-            Console.WriteLine("UndertaleModCli Usage:");
-            Console.WriteLine("UndertaleModCli.exe <path to the data.win/.ios/.droid/.unx file>");
-            Console.WriteLine("If you're on Windows, you can also drag and drop the file onto the executable.");
         }
 
         public void RunCodeLine(string line)
@@ -91,15 +269,16 @@ namespace UndertaleModCli
 
         public void RunCodeFile(string path)
         {
-            string lines = null;
+            string lines;
             try
             {
                 lines = File.ReadAllText(path);
             }
-            catch (Exception exc)
+            catch (IOException exc)
             {
                 Console.WriteLine("Script file not found or cannot be read.");
                 Console.WriteLine(exc);
+                return;
             }
 
             if (lines != null)
@@ -110,17 +289,39 @@ namespace UndertaleModCli
             }
         }
 
-        public void OnWarning(string warning) => Console.WriteLine("[WARNING]: {0}", warning);
+        public void OnWarning(string warning) => Console.WriteLine($"[WARNING]: {warning}");
 
-        public void OnMessage(string message) => Console.WriteLine("[MESSAGE]: {0}", message);
+        public void OnMessage(string message) => Console.WriteLine($"[MESSAGE]: {message}");
 
         public void CliSave(string to)
         {
-            Console.WriteLine("Saving...");
-            FileStream fs = new FileStream(to, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-            UndertaleIO.Write(fs, Data, OnMessage);
-            fs.Dispose(); fs = null;
-            Console.WriteLine("Done!");
+            Console.WriteLine($"Saving new data file to {this.Dest.FullName}");
+
+            using (var fs = new FileInfo(to).OpenWrite())
+            {
+                UndertaleIO.Write(fs, Data, OnMessage);
+                if (Verbose)
+                {
+                    Console.WriteLine($"Saved data file to {this.Dest.FullName}");
+                }
+            }
+        }
+
+        public static int Info(InfoOptions options)
+        {
+            Program program;
+            try
+            {
+                program = new Program(options.Datafile, options.Verbose);
+            }
+            catch (DataFileNotFoundException e)
+            {
+                Console.Error.WriteLine(e.Message);
+                return EXIT_FAILURE;
+            }
+            program.CliQuickInfo();
+
+            return EXIT_SUCCESS;
         }
 
         public void CliQuickInfo()
@@ -131,10 +332,10 @@ namespace UndertaleModCli
             Console.WriteLine("Is YYC - {0}", Data.IsYYC());
             Console.WriteLine("Bytecode version - {0}", Data.GeneralInfo.BytecodeVersion);
             Console.WriteLine("Configuration name - {0}", Data.GeneralInfo.Config);
-            // TODO: add more things?
+/*            // TODO: add more things?
             Console.WriteLine("Quick Information end.");
             Pause();
-        }
+*/        }
 
         public bool OnMenu()
         {
@@ -209,58 +410,6 @@ namespace UndertaleModCli
             return true;
         }
 
-        public int CliMain(string[] args)
-        {
-            try
-            {
-                Console.InputEncoding = System.Text.Encoding.UTF8;
-                Console.OutputEncoding = Console.InputEncoding;
-
-                // no args supplied?
-                if (args.Length <= 0)
-                {
-                    PrintUsage();
-                    Pause();
-                    return EXIT_SUCCESS;
-                }
-
-                Console.WriteLine("Trying to load file {0}", args[0]);
-
-                FileStream fs = new FileStream(args[0], FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
-
-                FinishedMessageEnabled = true;
-                FilePath = args[0];
-                ExePath = Environment.CurrentDirectory;
-                CliScriptOptions = ScriptOptions.Default
-                                .AddImports("UndertaleModLib", "UndertaleModLib.Models", "UndertaleModLib.Decompiler",
-                                            "UndertaleModLib.Scripting", "UndertaleModLib.Compiler",
-                                            "UndertaleModLib.Util", "System", "System.IO", "System.Collections.Generic",
-                                            "System.Text.RegularExpressions")
-                                .AddReferences(typeof(UndertaleObject).GetTypeInfo().Assembly,
-                                                GetType().GetTypeInfo().Assembly,
-                                                typeof(JsonConvert).GetTypeInfo().Assembly,
-                                                typeof(System.Text.RegularExpressions.Regex).GetTypeInfo().Assembly,
-                                                typeof(TextureWorker).GetTypeInfo().Assembly);
-
-                Data = UndertaleIO.Read(fs, OnWarning, OnMessage);
-
-                // excplicitly free.
-                fs.Dispose(); fs = null;
-
-                Console.WriteLine("File loaded.");
-
-                while (OnMenu()) { }
-
-                return EXIT_SUCCESS;
-            }
-            catch (Exception exc)
-            {
-                Console.WriteLine("An exception has occurred in UndertaleModCli:");
-                Console.WriteLine(exc);
-                Console.WriteLine("Report this as a bug.");
-                return EXIT_FAILURE;
-            }
-        }
 
         public void EnsureDataLoaded()
         {
@@ -457,7 +606,7 @@ namespace UndertaleModCli
         {
             // nothing to hide..
         }
-        
+
         public void EnableUI()
         {
             throw new NotImplementedException();
@@ -520,5 +669,9 @@ namespace UndertaleModCli
         {
             return "";
         }
+
     }
+
+
+
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ namespace UndertaleModLib
 {
     public class UndertaleData
     {
+
         public UndertaleChunkFORM FORM;
 
         public UndertaleGeneralInfo GeneralInfo => FORM.GEN8?.Object;
